@@ -4,13 +4,13 @@ import os
 
 class SimpleAmqpClientConan(ConanFile):
     name = "SimpleAmqpClient"
-    version = "2.4.0"
+    version = "2.5.1"
     license = "MIT"
     description = "SimpleAmqpClient is an easy-to-use C++ wrapper around the rabbitmq-c C library"
     settings = "os", "compiler", "build_type", "arch"
     options = {"shared": [True, False], "fPIC": [True, False]}
     default_options = "shared=True", "fPIC=True"
-    requires = ("rabbitmq-c/0.6.0@dbely/testing", "boost/[>=1.66.0]@conan/stable")
+    requires = ("rabbitmq-c/0.10.0@", ("zlib/1.2.11", "override"), "boost/1.73.0@")
     generators = "cmake", "cmake_find_package"
 
     @property
@@ -27,21 +27,20 @@ class SimpleAmqpClientConan(ConanFile):
             self.options["boost"].fPIC = True
 
     def source(self):
-        tools.get("https://codeload.github.com/alanxz/SimpleAmqpClient/zip/v%s" % self.version,
-                  sha1="931e2aa78fc011f8d1ea312541df75b1d5edd559")
+        url = "https://github.com/alanxz/SimpleAmqpClient.git"
+        self.run("git clone %s %s" % (url, self.src_dir))
+        self.run("cd %s && git checkout %s" % (self.src_dir, "f9fb520011477b3bc512defb99e0b0f598d76870"))
         cmakelist_tst = os.path.join(self.src_dir, "CMakeLists.txt")
-        tools.replace_in_file(cmakelist_tst, "PROJECT(SimpleAmqpClient)",
-                              """PROJECT(SimpleAmqpClient)
+        tools.replace_in_file(cmakelist_tst, "project(SimpleAmqpClient LANGUAGES CXX)",
+                              """project(SimpleAmqpClient LANGUAGES CXX)
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()""")
+        tools.replace_in_file(cmakelist_tst, "set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Modules)",
+                "list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Modules)")
+        tools.replace_in_file(cmakelist_tst, "find_package(Rabbitmqc REQUIRED)",
+                                            "find_package(rabbitmq-c REQUIRED)")
         os.unlink("%s/Modules/FindRabbitmqc.cmake" % self.src_dir)
-        tools.replace_in_file(cmakelist_tst,
-                              "SET(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Modules)",
-                              "list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Modules)")
         tools.replace_in_file(cmakelist_tst, "${Rabbitmqc_SSL_ENABLED}", "ON")
-        tools.replace_in_file(cmakelist_tst, "Rabbitmqc_LIBRARY", "rabbitmq-c_LIBRARIES")
-        tools.replace_in_file(cmakelist_tst, "Rabbitmqc", "rabbitmq-c")
-        tools.replace_in_file(cmakelist_tst, "Boost", "boost")
 
     def build(self):
         cmake = CMake(self)
